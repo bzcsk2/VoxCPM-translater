@@ -1,0 +1,9 @@
+aiohttp>=3.9
+PyYAML>=6.0
+pydub>=0.25
+soundfile>=0.12
+numpy>=1.24
+omegaconf>=2.3
+tqdm>=4.66
+# Install PyTorch according to your CUDA version: https://pytorch.org/get-started/locally/
+# External model repositories such as VibeVoice, VoxCPM, and LatentSync must be installed separately.
