@@ -1,0 +1,20 @@
+[
+  {
+    "id": 0,
+    "start": "00:00:01.000",
+    "end": "00:00:03.200",
+    "speaker": "Speaker 1",
+    "text_zh": "你到底是谁",
+    "zh_fixed": "你到底是谁？",
+    "en": "Who exactly are you?"
+  },
+  {
+    "id": 1,
+    "start": "00:00:03.300",
+    "end": "00:00:05.000",
+    "speaker": "Speaker 2",
+    "text_zh": "我只是路过的人",
+    "zh_fixed": "我只是路过的人。",
+    "en": "I'm just passing through."
+  }
+]
