@@ -2,7 +2,7 @@
 
 Local-first AI dubbing pipeline for translating Chinese drama / video content into English dubbed video.
 
-This project combines vocal extraction, ASR, LLM-based script correction, dubbing-oriented translation, VoxCPM2 zero-shot voice cloning, FFmpeg audio assembly, and optional LatentSync lip-sync.
+This project combines vocal extraction, ASR, LLM-based script correction, dubbing-oriented translation, FFmpeg audio assembly, and optional LatentSync lip-sync. The per-segment audio generation stage is kept as a local-backend integration point so users can connect their own local model setup and comply with the licenses and permissions of their source material.
 
 > Status: research release. The pipeline has been run locally, but users must prepare model weights and local paths themselves.
 
@@ -14,19 +14,19 @@ VoxCPM Translator turns a source video into an English dubbed video through a st
 2. Transcribe Chinese speech with speaker IDs and timestamps.
 3. Refine ASR text and translate it into dubbing-friendly English.
 4. Verify that translated JSON still matches the ASR segment list.
-5. Generate English voice clips with VoxCPM2 using the original voice segment as reference audio.
+5. Generate per-segment audio chunks with your local backend.
 6. Assemble the final dubbed audio track and mux it with video.
 7. Optionally run LatentSync for mouth-shape synchronization.
 8. Optionally burn English subtitles.
 
-The core design choice is **per-segment voice cloning**: each dialogue segment uses the original segment audio as the reference voice, instead of relying on traditional diarization and a fixed speaker library.
+The core design choice is **per-segment audio generation**: each dialogue segment maps to one output clip named `raw_<id>.wav`, so the assembly stage can align the generated audio to the original timestamps.
 
 ## Features
 
 - Local-first pipeline; model weights are not bundled in this repository.
 - Designed for Chinese drama / short-video dialogue.
 - Context-aware ASR correction and dubbing translation.
-- VoxCPM2 zero-shot voice cloning.
+- Per-segment audio chunk interface for local generation backends.
 - Smart speed adjustment for generated clips before audio assembly.
 - Optional ASS subtitle generation.
 - Optional experimental LatentSync integration.
@@ -50,16 +50,14 @@ The core design choice is **per-segment voice cloning**: each dialogue segment u
 │   ├── 03_refine_and_translate.py
 │   ├── 03_kimi_refine_and_translate.py
 │   ├── 04_verify_translation.py
-│   ├── 05_voxcpm_tts.py
+│   ├── 05_generate_audio_chunks.py
 │   ├── 06_assemble_final.py
 │   ├── 07_latentsync_lipsync.py
 │   ├── burn_subtitles.py
 │   └── common.py
 ├── .env.example
 ├── .gitignore
-├── environment.yml
-├── requirements.txt
-└── LICENSE
+└── requirements.txt
 ```
 
 ## Requirements
@@ -68,18 +66,18 @@ Recommended environment:
 
 - Linux
 - Python 3.10+
-- CUDA-capable GPU
+- CUDA-capable GPU for local ASR / generation backends
 - FFmpeg / FFprobe
 - Conda or Mamba
 - Local model weights
 - NVIDIA API key or another OpenAI-compatible chat-completions endpoint
 
-The pipeline expects you to prepare these models yourself:
+The pipeline expects you to prepare models yourself. Common local components include:
 
 - `Kim_Vocal_2.onnx` or another audio-separator-compatible vocal model
 - `VibeVoice-ASR`
 - `Qwen3-ASR-1.7B` or compatible tokenizer/model path required by your VibeVoice setup
-- `VoxCPM2`
+- Your preferred local audio-generation backend
 - Optional: `LatentSync`
 
 This repository does **not** redistribute any model weights.
@@ -90,8 +88,9 @@ This repository does **not** redistribute any model weights.
 git clone https://github.com/bzcsk2/VoxCPM-translater.git
 cd VoxCPM-translater
 
-conda env create -f environment.yml
+conda create -n voxcpm-translator python=3.10 -y
 conda activate voxcpm-translator
+pip install -r requirements.txt
 
 cp .env.example .env
 cp configs/default.yaml configs/local.yaml
@@ -110,7 +109,6 @@ models:
   audio_separator_model_dir: "/path/to/audio-separator-models"
   vibevoice_asr_path: "/path/to/VibeVoice-ASR"
   qwen_asr_path: "/path/to/Qwen3-ASR-1.7B"
-  voxcpm_model_path: "/path/to/VoxCPM2"
   latentsync_dir: "/path/to/LatentSync"
 ```
 
@@ -125,7 +123,7 @@ bash scripts/01_process_vocals.sh configs/local.yaml
 python scripts/02_transcribe_vibe.py --config configs/local.yaml
 python scripts/03_refine_and_translate.py --config configs/local.yaml
 python scripts/04_verify_translation.py --config configs/local.yaml
-python scripts/05_voxcpm_tts.py --config configs/local.yaml
+python scripts/05_generate_audio_chunks.py --config configs/local.yaml
 python scripts/06_assemble_final.py --config configs/local.yaml
 ```
 
@@ -158,7 +156,7 @@ outputs/final_dubbing_subtitled.mp4
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+A repository license should be added before treating this as a fully open-source release. MIT is the intended default for this codebase.
 
 ## Disclaimer
 
