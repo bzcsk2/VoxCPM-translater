@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import math
+import shutil
 import sys
 import wave
 from pathlib import Path
@@ -93,7 +94,12 @@ assembly:
     def fake_run(cmd, check):
         ffmpeg_calls.append(cmd)
 
+    def fake_adjust_speed(input_wav, target_dur_sec, output_wav, min_speed_ratio):
+        shutil.copyfile(input_wav, output_wav)
+        return False
+
     monkeypatch.setattr(assemble_stage.subprocess, "run", fake_run)
+    monkeypatch.setattr(assemble_stage, "adjust_speed_smart", fake_adjust_speed)
     monkeypatch.setattr(sys, "argv", ["06_assemble_final.py", "--config", str(config_path)])
     assemble_stage.main()
 
