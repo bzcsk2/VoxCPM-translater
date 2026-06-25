@@ -36,6 +36,18 @@ Fill this section after a complete local run from `00_extract_audio.py` through 
 | LatentSync repo commit | Optional / TODO |
 | LLM provider / model | TODO |
 
+## Collect a redacted local report
+
+Run this on the local machine that has the actual model paths, CUDA stack, FFmpeg, and optional backends installed:
+
+```bash
+python scripts/collect_env_report.py --config configs/local.yaml --output outputs/local_env_report.json
+```
+
+The report is intended to help fill the table above and to debug environment drift. It records tool versions, Python/PyTorch/CUDA metadata, executable availability, whether configured paths exist, whether the configured LLM key environment variable is set, and which TTS backend is selected.
+
+The report intentionally does **not** include raw configured paths, API key values, prompts, source text, translated text, model outputs, or media metadata. Still review `outputs/local_env_report.json` before sharing it publicly.
+
 ## What to record after a successful full run
 
 Record the following before cutting a release or recommending the setup to other users:
@@ -46,6 +58,7 @@ ffmpeg -version | head -n 1
 ffprobe -version | head -n 1
 python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))"
 python scripts/check_env.py --config configs/local.yaml
+python scripts/collect_env_report.py --config configs/local.yaml --output outputs/local_env_report.json
 ```
 
 Also record:
