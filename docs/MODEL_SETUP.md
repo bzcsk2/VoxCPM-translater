@@ -99,6 +99,14 @@ def generate_audio(segment: dict, output_path: Path, config: dict) -> None:
 
 The function should write a WAV file to `output_path`. It can read `models.voxcpm_model_path`, `tts.cfg_value`, `tts.inference_timesteps`, `tts.voice_prompt_prefix`, and any extra keys from `config`.
 
+A starting template is available at:
+
+```text
+examples/voxcpm_adapter_template.py
+```
+
+Copy it into your local project path, replace the loader and inference call with the VoxCPM API installed on your machine, then set `tts.voxcpm_adapter` to the importable module path.
+
 ### 4. LatentSync, optional
 
 Used by `scripts/07_latentsync_lipsync.py`.
