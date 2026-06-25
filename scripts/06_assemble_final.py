@@ -28,7 +28,9 @@ def find_chunk(chunk_dir: str | os.PathLike[str], seg_id: int | str) -> str | No
     return None
 
 
-def run_atempo(input_wav: str, ratio: float, output_wav: str) -> None:
+def atempo_filters(ratio: float) -> list[str]:
+    if ratio <= 0:
+        raise ValueError(f"atempo ratio must be positive, got {ratio}")
     filters: list[str] = []
     tmp = ratio
     while tmp > 2.0:
@@ -38,18 +40,28 @@ def run_atempo(input_wav: str, ratio: float, output_wav: str) -> None:
         filters.append("atempo=0.5")
         tmp /= 0.5
     filters.append(f"atempo={tmp}")
-    subprocess.run(["ffmpeg", "-y", "-i", input_wav, "-filter:a", ",".join(filters), output_wav], check=True)
+    return filters
+
+
+def speed_adjustment_ratio(current_dur_sec: float, target_dur_sec: float, min_speed_ratio: float) -> float | None:
+    if current_dur_sec <= 0 or target_dur_sec <= 0:
+        return None
+    ratio = current_dur_sec / target_dur_sec
+    final_ratio = ratio if ratio > 1.0 else max(min_speed_ratio, ratio)
+    if 0.98 < final_ratio < 1.02:
+        return None
+    return final_ratio
+
+
+def run_atempo(input_wav: str, ratio: float, output_wav: str) -> None:
+    subprocess.run(["ffmpeg", "-y", "-i", input_wav, "-filter:a", ",".join(atempo_filters(ratio)), output_wav], check=True)
 
 
 def adjust_speed_smart(input_wav: str, target_dur_sec: float, output_wav: str, min_speed_ratio: float) -> bool:
     audio = AudioSegment.from_file(input_wav)
     current_dur = len(audio) / 1000.0
-    if current_dur <= 0 or target_dur_sec <= 0:
-        shutil.copyfile(input_wav, output_wav)
-        return False
-    ratio = current_dur / target_dur_sec
-    final_ratio = ratio if ratio > 1.0 else max(min_speed_ratio, ratio)
-    if 0.98 < final_ratio < 1.02:
+    final_ratio = speed_adjustment_ratio(current_dur, target_dur_sec, min_speed_ratio)
+    if final_ratio is None:
         shutil.copyfile(input_wav, output_wav)
         return False
     run_atempo(input_wav, final_ratio, output_wav)
