@@ -31,6 +31,7 @@ The core design choice is **per-segment audio generation**: each dialogue segmen
 - Built-in backend modes: `manual`, `custom_command`, and `voxcpm` adapter.
 - Smart speed adjustment for generated clips before audio assembly.
 - Config and environment preflight checks.
+- Resumable stage orchestration with output status inspection.
 - Optional ASS subtitle generation.
 - Optional experimental LatentSync integration.
 
@@ -47,7 +48,8 @@ The core design choice is **per-segment audio generation**: each dialogue segmen
 │   ├── TROUBLESHOOTING.md
 │   └── LIPSYNC_DESIGN.md
 ├── examples/
-│   └── sample_workflow_data.json
+│   ├── sample_workflow_data.json
+│   └── voxcpm_adapter_template.py
 ├── scripts/
 │   ├── 00_extract_audio.py
 │   ├── 01_process_vocals.sh
@@ -151,6 +153,20 @@ Or run selected stages through the lightweight orchestrator:
 ```bash
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6
 ```
+
+Inspect expected output status without running stages:
+
+```bash
+python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --status
+```
+
+Resume after an interrupted run by skipping completed stages:
+
+```bash
+python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --resume
+```
+
+`--resume` skips stages whose durable outputs are complete. Validation-only stages such as `verify` are not auto-skipped because they do not create durable output files.
 
 Optional:
 
