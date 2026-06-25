@@ -160,6 +160,8 @@ Inspect expected output status without running stages:
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --status
 ```
 
+The status view also includes the last recorded local stage run when a manifest exists, for example `last_run=failed`, `finished=...`, `duration=...`, and a non-zero `returncode`.
+
 Resume after an interrupted run by skipping completed stages:
 
 ```bash
