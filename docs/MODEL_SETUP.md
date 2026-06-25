@@ -45,7 +45,7 @@ tts:
   backend: "manual"
 ```
 
-The repository does not redistribute a model-specific TTS implementation. Instead, it defines a stable file contract:
+The repository defines a stable file contract:
 
 ```text
 paths.dub_chunk_dir/
@@ -56,7 +56,20 @@ paths.dub_chunk_dir/
 
 Each spoken segment in `paths.refined_json` must produce one WAV file named `raw_<id>.wav`. `dub_<id>.wav` is accepted for compatibility.
 
-The default `manual` backend validates that required chunks exist. To connect a local model runner, use `custom_command`:
+Supported backend modes:
+
+#### `manual`
+
+Validates that required chunks already exist.
+
+```yaml
+tts:
+  backend: "manual"
+```
+
+#### `custom_command`
+
+Calls a local CLI command once per segment. Available template variables are `$id`, `$speaker`, `$text`, `$output`, `$start`, and `$end`.
 
 ```yaml
 tts:
@@ -65,16 +78,26 @@ tts:
   overwrite: false
 ```
 
-Available template variables:
+#### `voxcpm`
 
-```text
-$id       segment id
-$speaker  speaker label
-$text     English dubbing line, falling back to zh_fixed/text_zh
-$output   target raw_<id>.wav path
-$start    segment start timestamp
-$end      segment end timestamp
+Calls a Python adapter module that you provide. This keeps VoxCPM import details outside the repository while giving the project a first-class backend slot.
+
+```yaml
+tts:
+  backend: "voxcpm"
+  voxcpm_adapter: "my_voxcpm_adapter"
+  voxcpm_adapter_function: "generate_audio"
+  overwrite: false
 ```
+
+The adapter function must have this signature:
+
+```python
+def generate_audio(segment: dict, output_path: Path, config: dict) -> None:
+    ...
+```
+
+The function should write a WAV file to `output_path`. It can read `models.voxcpm_model_path`, `tts.cfg_value`, `tts.inference_timesteps`, `tts.voice_prompt_prefix`, and any extra keys from `config`.
 
 ### 4. LatentSync, optional
 
