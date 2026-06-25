@@ -29,6 +29,7 @@ llm:
   temperature: 0.1
   max_tokens: 8192
   batch_size: 20
+  split_failed_batches: true
 
 runtime:
   asr_device: "cuda:0"
@@ -61,8 +62,10 @@ asr:
     silence and create a new segment. Identify different speakers carefully.
 
 tts:
-  backend: "manual"  # manual | custom_command
+  backend: "manual"  # manual | custom_command | voxcpm
   custom_command: "" # Example: python my_tts.py --text '$text' --speaker '$speaker' --output '$output'
+  voxcpm_adapter: "" # Python module exposing generate_audio(segment, output_path, config)
+  voxcpm_adapter_function: "generate_audio"
   overwrite: false
   cfg_value: 2.0
   inference_timesteps: 15
