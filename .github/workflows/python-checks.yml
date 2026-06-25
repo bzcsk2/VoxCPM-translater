@@ -28,6 +28,9 @@ jobs:
       - name: Compile scripts
         run: python -m compileall scripts
 
+      - name: Check shell script syntax
+        run: bash -n scripts/01_process_vocals.sh
+
       - name: Run tests
         run: pytest -q
 
