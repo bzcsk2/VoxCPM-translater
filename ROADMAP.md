@@ -2,26 +2,36 @@
 
 This repository is currently a research release. The code is useful as a local workflow, but several areas should mature before it is treated as a polished end-user tool.
 
+## Completed foundation
+
+- Documented adapter contract for `scripts/05_generate_audio_chunks.py`.
+- Added `manual`, `custom_command`, and `voxcpm` adapter backend modes.
+- Added preflight checks for required local files, tools, environment variables, and model directories.
+- Added video-to-WAV extraction as stage 00.
+- Added a dry-run capable pipeline orchestrator.
+- Added lightweight CI with compile, pytest, and dry-run checks.
+- Added unit tests for timestamps, subtitle escaping, JSON alignment, LLM JSON parsing, and assembly chunk discovery.
+- Added a fixture-free smoke test for manual TTS validation and audio assembly.
+
 ## Near-term
 
-- Add a real implementation or documented adapter contract for `scripts/05_generate_audio_chunks.py`.
-- Validate required local files before each stage starts, with clear error messages.
-- Add sample ASR and refined JSON fixtures so non-GPU tests can verify timestamp and assembly behavior.
-- Add a dry-run command that checks config paths, environment variables, FFmpeg, and optional model directories.
-- Document how to create `paths.input_wav` from `paths.input_video`.
+- Fill in `docs/KNOWN_GOOD_ENV.md` after a complete local GPU run.
+- Add a concrete VoxCPM adapter example once a stable local VoxCPM API/CLI shape is confirmed.
+- Add shell checks for `scripts/01_process_vocals.sh`.
+- Add stronger resumability checks so users can restart after failures without rerunning completed stages.
 
 ## Project quality
 
-- Add unit tests for timestamp parsing, subtitle escaping, JSON alignment, and speed adjustment decisions.
-- Add shell checks for `scripts/01_process_vocals.sh`.
 - Pin or constrain dependency versions once a known-good environment is tested.
 - Separate optional dependency groups for ASR, translation, TTS, subtitles, and LatentSync.
+- Add tests for speed-adjustment decisions that monkeypatch FFmpeg calls.
+- Add sample ASR/refined JSON fixtures for documentation examples.
 
 ## User experience
 
-- Consider a single orchestrator CLI that runs selected stages in order.
-- Add resumable stage output checks so users can restart after failures.
-- Improve failure handling for missing chunks, malformed model output, and invalid subtitle text.
+- Consider packaging the scripts behind a single installable CLI.
+- Improve failure messages for malformed model output and invalid subtitle text.
+- Add progress summaries for long-running stages.
 
 ## Release readiness
 
