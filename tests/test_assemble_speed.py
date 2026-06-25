@@ -9,7 +9,7 @@ SPEC.loader.exec_module(assemble_final)
 
 
 def test_atempo_filters_splits_large_ratio() -> None:
-    assert assemble_final.atempo_filters(4.5) == ["atempo=2.0", "atempo=2.25"]
+    assert assemble_final.atempo_filters(4.5) == ["atempo=2.0", "atempo=2.0", "atempo=1.125"]
 
 
 def test_atempo_filters_splits_small_ratio() -> None:
