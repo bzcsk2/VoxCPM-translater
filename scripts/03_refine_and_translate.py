@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -33,6 +34,8 @@ Rules:
 Output a single raw JSON array only. No markdown fences. No explanation.
 """
 
+IMMUTABLE_KEYS = ["id", "start", "end", "speaker", "text_zh"]
+
 
 def _clean_json_text(text: str) -> str:
     text = text.strip()
@@ -41,7 +44,48 @@ def _clean_json_text(text: str) -> str:
     return text.strip()
 
 
-async def process_batch(session: aiohttp.ClientSession, cfg: dict[str, Any], batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def parse_llm_json_response(content: str) -> list[dict[str, Any]]:
+    """Parse a JSON array from common LLM response variants."""
+    cleaned = _clean_json_text(content)
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("[")
+        end = cleaned.rfind("]")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        parsed = json.loads(cleaned[start : end + 1])
+
+    if not isinstance(parsed, list):
+        raise ValueError("LLM response must be a JSON array")
+    for idx, row in enumerate(parsed):
+        if not isinstance(row, dict):
+            raise ValueError(f"LLM response row {idx} is not an object")
+    return parsed
+
+
+def validate_batch_output(batch: list[dict[str, Any]], output: list[dict[str, Any]]) -> None:
+    if len(batch) != len(output):
+        raise ValueError(f"batch has {len(batch)} rows, output has {len(output)} rows")
+    for idx, (src, out) in enumerate(zip(batch, output)):
+        for key in IMMUTABLE_KEYS:
+            if src.get(key) != out.get(key):
+                raise ValueError(f"row {idx} key {key!r} mismatch: {src.get(key)!r} != {out.get(key)!r}")
+        if "zh_fixed" not in out or "en" not in out:
+            raise ValueError(f"row {idx} missing zh_fixed or en")
+
+
+def _failure_dir(cfg: dict[str, Any]) -> Path:
+    output_dir = Path(get_nested(cfg, "paths.output_dir", "outputs"))
+    return ensure_dir(output_dir / "failed_llm_batches")
+
+
+def _write_failure(cfg: dict[str, Any], batch_label: str, attempt: int, content: str) -> None:
+    path = _failure_dir(cfg) / f"batch_{batch_label}_attempt_{attempt}.txt"
+    path.write_text(content, encoding="utf-8")
+
+
+async def _call_llm(session: aiohttp.ClientSession, cfg: dict[str, Any], batch: list[dict[str, Any]]) -> str:
     url = get_nested(cfg, "llm.api_base")
     model = get_nested(cfg, "llm.model")
     api_key = env_api_key(cfg)
@@ -56,21 +100,42 @@ async def process_batch(session: aiohttp.ClientSession, cfg: dict[str, Any], bat
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    for attempt in range(3):
+    async with session.post(url, json=payload, headers=headers, timeout=300) as resp:
+        body = await resp.text()
+        if resp.status != 200:
+            raise RuntimeError(f"LLM HTTP {resp.status}: {body[:500]}")
+        data = json.loads(body)
+        return data["choices"][0]["message"]["content"]
+
+
+async def process_batch(
+    session: aiohttp.ClientSession,
+    cfg: dict[str, Any],
+    batch: list[dict[str, Any]],
+    batch_label: str = "0",
+) -> list[dict[str, Any]]:
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
         try:
-            async with session.post(url, json=payload, headers=headers, timeout=300) as resp:
-                body = await resp.text()
-                if resp.status != 200:
-                    print(f"LLM HTTP {resp.status}: {body[:500]}")
-                    await asyncio.sleep(3)
-                    continue
-                data = json.loads(body)
-                content = data["choices"][0]["message"]["content"]
-                return json.loads(_clean_json_text(content))
+            content = await _call_llm(session, cfg, batch)
+            output = parse_llm_json_response(content)
+            validate_batch_output(batch, output)
+            return output
         except Exception as exc:
-            print(f"Batch attempt {attempt + 1} failed: {exc}")
+            last_error = exc
+            print(f"Batch {batch_label} attempt {attempt} failed: {exc}")
+            _write_failure(cfg, batch_label, attempt, str(exc))
             await asyncio.sleep(3)
-    raise RuntimeError("LLM batch failed after 3 attempts")
+
+    split_failed_batches = bool(get_nested(cfg, "llm.split_failed_batches", True))
+    if split_failed_batches and len(batch) > 1:
+        mid = len(batch) // 2
+        print(f"Splitting failed batch {batch_label} into {len(batch[:mid])} + {len(batch[mid:])} rows")
+        left = await process_batch(session, cfg, batch[:mid], f"{batch_label}a")
+        right = await process_batch(session, cfg, batch[mid:], f"{batch_label}b")
+        return [*left, *right]
+
+    raise RuntimeError(f"LLM batch {batch_label} failed after retries") from last_error
 
 
 async def main_async() -> None:
@@ -88,8 +153,9 @@ async def main_async() -> None:
     async with aiohttp.ClientSession() as session:
         for start in range(0, len(segments), batch_size):
             batch = segments[start : start + batch_size]
-            print(f"Processing batch {start // batch_size + 1}: {len(batch)} segments")
-            processed.extend(await process_batch(session, cfg, batch))
+            batch_label = str(start // batch_size + 1)
+            print(f"Processing batch {batch_label}: {len(batch)} segments")
+            processed.extend(await process_batch(session, cfg, batch, batch_label=batch_label))
 
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(processed, f, ensure_ascii=False, indent=2)
