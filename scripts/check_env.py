@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import sys
@@ -53,6 +54,19 @@ def _check_file(results: list[CheckResult], key: str, path: Path, required: bool
         return True
     level = "FAIL" if required else "WARN"
     results.append(CheckResult(level, key, f"file does not exist: {path}"))
+    return False
+
+
+def _check_module(results: list[CheckResult], key: str, module_name: str | None, required: bool = True) -> bool:
+    if not module_name:
+        level = "FAIL" if required else "WARN"
+        results.append(CheckResult(level, key, "empty Python module name"))
+        return False
+    if importlib.util.find_spec(str(module_name)) is not None:
+        results.append(CheckResult("OK", key, f"importable module: {module_name}"))
+        return True
+    level = "FAIL" if required else "WARN"
+    results.append(CheckResult(level, key, f"module is not importable: {module_name}"))
     return False
 
 
@@ -128,10 +142,7 @@ def run_checks(config_path: str) -> list[CheckResult]:
     elif backend == "voxcpm":
         results.append(CheckResult("OK", "tts.backend", "configured backend: voxcpm"))
         _check_path(results, "models.voxcpm_model_path", get_nested(cfg, "models.voxcpm_model_path"))
-        if adapter:
-            results.append(CheckResult("OK", "tts.voxcpm_adapter", f"configured adapter module: {adapter}"))
-        else:
-            results.append(CheckResult("FAIL", "tts.voxcpm_adapter", "backend is voxcpm but no adapter module is configured"))
+        _check_module(results, "tts.voxcpm_adapter", adapter)
     else:
         results.append(CheckResult("FAIL", "tts.backend", f"unsupported backend: {backend!r}; expected manual, custom_command, or voxcpm"))
 
