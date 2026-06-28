@@ -203,6 +203,25 @@ def check_tts(results: list[CheckResult], cfg: dict[str, Any]) -> None:
         check_module(results, "tts.voxcpm_adapter", adapter)
 
 
+def check_input_media(results: list[CheckResult], cfg: dict[str, Any]) -> None:
+    input_video = get_nested(cfg, "paths.input_video")
+    input_wav = get_nested(cfg, "paths.input_wav")
+
+    if is_placeholder(input_video):
+        results.append(CheckResult(FAIL, "input video", f"missing or placeholder path: {input_video}"))
+    elif as_path(input_video).is_file():
+        results.append(CheckResult(OK, "input video", f"found {input_video}"))
+    else:
+        results.append(CheckResult(FAIL, "input video", f"file does not exist: {input_video}"))
+
+    if is_placeholder(input_wav):
+        results.append(CheckResult(WARN, "input wav", f"missing or placeholder path: {input_wav}; run stage 0 first"))
+    elif as_path(input_wav).is_file():
+        results.append(CheckResult(OK, "input wav", f"found {input_wav}"))
+    else:
+        results.append(CheckResult(WARN, "input wav", f"not found: {input_wav}; run scripts/00_extract_audio.py"))
+
+
 def check_outputs(results: list[CheckResult], cfg: dict[str, Any]) -> None:
     output_dir = get_nested(cfg, "paths.output_dir")
     if not output_dir:
@@ -222,6 +241,7 @@ def run_environment_checks(cfg: dict[str, Any]) -> list[CheckResult]:
     check_executable(results, "ffprobe")
     check_executable(results, "audio-separator", required=False)
     check_required_config_values(results, cfg)
+    check_input_media(results, cfg)
     check_outputs(results, cfg)
     check_model_paths(results, cfg)
     check_llm(results, cfg)
