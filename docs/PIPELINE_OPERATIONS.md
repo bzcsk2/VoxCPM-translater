@@ -41,7 +41,25 @@ For tools and agents that need structured output:
 python scripts/diagnose.py --config configs/local.yaml --include-artifacts --json
 ```
 
-## 2. Run preflight checks
+## 2. Inspect stage contracts
+
+Stage IDs, names, commands, output keys, and resumability rules are centralized in `scripts/stage_contracts.py`.
+
+List them as a table:
+
+```bash
+python scripts/list_stages.py
+```
+
+List them as JSON for tools or agents:
+
+```bash
+python scripts/list_stages.py --json
+```
+
+See [STAGE_CONTRACTS.md](STAGE_CONTRACTS.md) for the maintenance policy.
+
+## 3. Run preflight checks
 
 Run the environment and configuration checks before starting a real pipeline run:
 
@@ -63,7 +81,7 @@ For a compact human-readable output without the final summary line:
 python scripts/check_env.py --config configs/local.yaml --no-summary
 ```
 
-## 3. Preview selected stages
+## 4. Preview selected stages
 
 Before running anything, print the exact commands that would run:
 
@@ -73,7 +91,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 This is useful after editing `configs/local.yaml`, changing the stage range, or adding `--skip` options.
 
-## 4. Gate a real run with preflight
+## 5. Gate a real run with preflight
 
 Use `--preflight` when you want the orchestrator to stop before stage execution if required checks fail:
 
@@ -87,7 +105,7 @@ You can combine it with `--dry-run` to test the gate and command plan without ex
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --preflight --dry-run
 ```
 
-## 5. Validate intermediate artifacts
+## 6. Validate intermediate artifacts
 
 After ASR, translation, or manual TTS preparation, validate the data contracts before moving downstream:
 
@@ -106,7 +124,7 @@ This checks:
 
 See [DATA_CONTRACTS.md](DATA_CONTRACTS.md) for the detailed rules.
 
-## 6. Inspect stage status
+## 7. Inspect stage status
 
 To see which selected stages appear complete, missing, partial, or check-only:
 
@@ -116,7 +134,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 The status command inspects configured output paths. For the TTS stage, it checks whether every spoken segment in `paths.refined_json` has a corresponding `raw_<id>.wav` or `dub_<id>.wav` in `paths.dub_chunk_dir`.
 
-## 7. Resume safely
+## 8. Resume safely
 
 Use `--resume` to skip stages whose expected outputs already exist:
 
@@ -126,7 +144,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 The verify stage is intentionally not auto-skipped because it has no durable output file. It should still run when selected.
 
-## 8. Skip a stage explicitly
+## 9. Skip a stage explicitly
 
 You can skip stages by stage ID or stage name:
 
@@ -136,7 +154,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 Use explicit skips carefully. A downstream stage may still fail if it depends on outputs from the skipped stage.
 
-## 9. Read stage manifests
+## 10. Read stage manifests
 
 After each executed stage, the orchestrator writes a small manifest under:
 
@@ -155,7 +173,7 @@ The manifest records:
 
 It intentionally does not store the full command, private absolute config path, model paths, source media paths, or secrets.
 
-## 10. Recommended run patterns
+## 11. Recommended run patterns
 
 ### First full local run
 
@@ -194,11 +212,12 @@ See [OUTPUT_STAGES.md](OUTPUT_STAGES.md) for final assembly, LatentSync, subtitl
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 7 --to-stage 8 --status
 ```
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 | Symptom | What to check |
 | --- | --- |
 | You need to ask for help | Run `python scripts/diagnose.py --config configs/local.yaml --include-artifacts` and paste the report. |
+| Stage IDs or names are unclear | Run `python scripts/list_stages.py` and check [STAGE_CONTRACTS.md](STAGE_CONTRACTS.md). |
 | `check_env.py` returns `FAIL` for placeholder paths | Replace `/path/to/...` values in `configs/local.yaml` with real local paths. |
 | `--preflight` stops before stages run | Fix all `FAIL` rows first, then rerun. |
 | `validate_artifacts.py` reports timestamp errors | Check `start` / `end` format and ensure each `end` is after `start`. |
