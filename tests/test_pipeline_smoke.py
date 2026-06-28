@@ -63,6 +63,7 @@ def test_manual_tts_and_assembly_smoke(tmp_path: Path, monkeypatch) -> None:
     )
     write_silence_wav(bgm_wav, duration_ms=1000)
     write_silence_wav(chunk_dir / "raw_0.wav", duration_ms=500)
+    input_video.write_bytes(b"placeholder video")
 
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
