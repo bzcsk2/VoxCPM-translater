@@ -63,7 +63,7 @@ The common local components are:
 | VoxCPM2 weights or another local audio-generation backend | Stage 05 | `models.voxcpm_model_path`, `tts.*` |
 | LatentSync repo / weights | Optional stage 07 | `models.latentsync_dir` |
 
-Read [docs/QUICKSTART_LOCAL.md](docs/QUICKSTART_LOCAL.md) first for the concrete local directory layout and setup order. More details are in [docs/INSTALL.md](docs/INSTALL.md), [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md), and [docs/KNOWN_GOOD_ENV.md](docs/KNOWN_GOOD_ENV.md).
+Read [docs/QUICKSTART_LOCAL.md](docs/QUICKSTART_LOCAL.md) first for the concrete local directory layout and setup order. Configuration details are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md), installation details are in [docs/INSTALL.md](docs/INSTALL.md), model details are in [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md), operational commands are in [docs/PIPELINE_OPERATIONS.md](docs/PIPELINE_OPERATIONS.md), and known-good environment notes are in [docs/KNOWN_GOOD_ENV.md](docs/KNOWN_GOOD_ENV.md).
 
 This repository does **not** redistribute any model weights.
 
@@ -78,7 +78,7 @@ conda activate voxcpm-translator
 pip install -r requirements.txt
 
 cp .env.example .env
-cp configs/default.yaml configs/local.yaml
+cp configs/local.example.yaml configs/local.yaml
 ```
 
 Then edit `configs/local.yaml` and set your local model paths and input files.
@@ -89,20 +89,30 @@ Project maturity and planned improvements are tracked in [ROADMAP.md](ROADMAP.md
 
 ## Configuration
 
-All local paths should live in `configs/local.yaml`. The default template intentionally uses placeholder paths:
+Committed config files have separate roles:
+
+| File | Purpose |
+| --- | --- |
+| `configs/default.yaml` | Canonical default / schema-like reference used when no `--config` is provided. |
+| `configs/local.example.yaml` | User-facing template to copy into `configs/local.yaml`. |
+| `configs/ci.yaml` | Placeholder config for tests and lightweight CI-style validation. |
+
+All private local paths should live in `configs/local.yaml`, which is ignored by Git. Do not edit `configs/default.yaml` with machine-specific paths.
+
+A typical local model section looks like this:
 
 ```yaml
 models:
   audio_separator_model: "Kim_Vocal_2.onnx"
-  audio_separator_model_dir: "/path/to/audio-separator-models"
-  vibevoice_repo: "/path/to/VibeVoice"
-  vibevoice_asr_path: "/path/to/VibeVoice-ASR"
-  qwen_asr_path: "/path/to/Qwen3-ASR-1.7B"
-  voxcpm_model_path: "/path/to/VoxCPM2"
-  latentsync_dir: "/path/to/LatentSync"
+  audio_separator_model_dir: "/home/you/models/audio-separator"
+  vibevoice_repo: "/home/you/repos/VibeVoice"
+  vibevoice_asr_path: "/home/you/models/VibeVoice-ASR"
+  qwen_asr_path: "/home/you/models/Qwen3-ASR-1.7B"
+  voxcpm_model_path: "/home/you/models/VoxCPM2"
+  latentsync_dir: "/home/you/repos/LatentSync"
 ```
 
-Do not commit `configs/local.yaml` if it contains private machine paths.
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full configuration policy.
 
 ## Usage
 
@@ -112,7 +122,20 @@ Run a preflight check first:
 python scripts/check_env.py --config configs/local.yaml
 ```
 
-Run stages in order:
+Run stages through the orchestrator with a preflight gate:
+
+```bash
+python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --preflight
+```
+
+Inspect status before resuming:
+
+```bash
+python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --status
+python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --resume --preflight
+```
+
+You can still run stages manually when debugging:
 
 ```bash
 python scripts/00_extract_audio.py --config configs/local.yaml
@@ -122,12 +145,6 @@ python scripts/03_refine_and_translate.py --config configs/local.yaml
 python scripts/04_verify_translation.py --config configs/local.yaml
 python scripts/05_generate_audio_chunks.py --config configs/local.yaml
 python scripts/06_assemble_final.py --config configs/local.yaml
-```
-
-Or run selected stages through the lightweight orchestrator:
-
-```bash
-python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6
 ```
 
 Optional:
