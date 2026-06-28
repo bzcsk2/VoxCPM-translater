@@ -30,6 +30,13 @@ def _write_config(tmp_path: Path, backend: str = "manual", custom_command: str =
             "input_video": str(input_video),
             "input_wav": str(input_wav),
             "output_dir": str(output_dir),
+            "vocal_source_for_asr": str(tmp_path / "vocals.wav"),
+            "instrumental_audio": str(tmp_path / "instrumental.wav"),
+            "asr_json": str(tmp_path / "asr.json"),
+            "refined_json": str(tmp_path / "refined.json"),
+            "dub_chunk_dir": str(tmp_path / "chunks"),
+            "temp_mixed_wav": str(tmp_path / "mixed.wav"),
+            "final_video": str(tmp_path / "final.mp4"),
         },
         "models": {
             "audio_separator_model": "Kim_Vocal_2.onnx",
@@ -40,7 +47,11 @@ def _write_config(tmp_path: Path, backend: str = "manual", custom_command: str =
             "voxcpm_model_path": str(voxcpm),
             "latentsync_dir": str(tmp_path / "missing-latentsync"),
         },
-        "llm": {"api_key_env": "TEST_LLM_KEY"},
+        "llm": {
+            "api_base": "https://example.invalid/v1/chat/completions",
+            "model": "example-model",
+            "api_key_env": "TEST_LLM_KEY",
+        },
         "tts": {
             "backend": backend,
             "custom_command": custom_command,
@@ -57,7 +68,9 @@ def _levels(results: list[check_env.CheckResult]) -> dict[str, str]:
 
 
 def test_run_checks_validates_audio_separator_model_file(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(check_env.shutil, "which", lambda exe: f"/usr/bin/{exe}")
+    import config_checks
+
+    monkeypatch.setattr(config_checks.shutil, "which", lambda exe: f"/usr/bin/{exe}")
     monkeypatch.setenv("TEST_LLM_KEY", "set")
     config_path = _write_config(tmp_path)
 
@@ -73,7 +86,9 @@ def test_run_checks_validates_audio_separator_model_file(monkeypatch, tmp_path: 
 
 
 def test_run_checks_fails_missing_audio_separator_model(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(check_env.shutil, "which", lambda exe: f"/usr/bin/{exe}")
+    import config_checks
+
+    monkeypatch.setattr(config_checks.shutil, "which", lambda exe: f"/usr/bin/{exe}")
     config_path = _write_config(tmp_path)
     (tmp_path / "models" / "audio-separator" / "Kim_Vocal_2.onnx").unlink()
 
@@ -84,7 +99,9 @@ def test_run_checks_fails_missing_audio_separator_model(monkeypatch, tmp_path: P
 
 
 def test_run_checks_custom_command_requires_command(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(check_env.shutil, "which", lambda exe: f"/usr/bin/{exe}")
+    import config_checks
+
+    monkeypatch.setattr(config_checks.shutil, "which", lambda exe: f"/usr/bin/{exe}")
     config_path = _write_config(tmp_path, backend="custom_command", custom_command="")
 
     results = check_env.run_checks(str(config_path))
@@ -94,7 +111,9 @@ def test_run_checks_custom_command_requires_command(monkeypatch, tmp_path: Path)
 
 
 def test_run_checks_voxcpm_accepts_importable_adapter(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(check_env.shutil, "which", lambda exe: f"/usr/bin/{exe}")
+    import config_checks
+
+    monkeypatch.setattr(config_checks.shutil, "which", lambda exe: f"/usr/bin/{exe}")
     config_path = _write_config(tmp_path, backend="voxcpm", adapter="json")
 
     results = check_env.run_checks(str(config_path))
@@ -106,7 +125,9 @@ def test_run_checks_voxcpm_accepts_importable_adapter(monkeypatch, tmp_path: Pat
 
 
 def test_run_checks_voxcpm_requires_model_path_and_adapter(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(check_env.shutil, "which", lambda exe: f"/usr/bin/{exe}")
+    import config_checks
+
+    monkeypatch.setattr(config_checks.shutil, "which", lambda exe: f"/usr/bin/{exe}")
     config_path = _write_config(tmp_path, backend="voxcpm", adapter="")
     (tmp_path / "models" / "VoxCPM2").rmdir()
 
@@ -116,3 +137,27 @@ def test_run_checks_voxcpm_requires_model_path_and_adapter(monkeypatch, tmp_path
     assert levels["tts.backend"] == "OK"
     assert levels["models.voxcpm_model_path"] == "FAIL"
     assert levels["tts.voxcpm_adapter"] == "FAIL"
+
+
+def test_run_checks_reports_missing_required_config_values(monkeypatch, tmp_path: Path) -> None:
+    import config_checks
+
+    monkeypatch.setattr(config_checks.shutil, "which", lambda exe: f"/usr/bin/{exe}")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "paths": {"output_dir": str(tmp_path / "outputs")},
+                "models": {"audio_separator_model": "Kim_Vocal_2.onnx"},
+                "llm": {"api_base": "https://example.invalid", "model": "m"},
+                "tts": {"backend": "manual"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    results = check_env.run_checks(str(config_path))
+    levels = _levels(results)
+
+    assert levels["paths.input_video"] == "FAIL"
+    assert levels["paths.refined_json"] == "FAIL"
