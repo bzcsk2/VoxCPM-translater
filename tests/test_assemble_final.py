@@ -18,7 +18,13 @@ def test_find_chunk_prefers_raw_over_dub(tmp_path: Path) -> None:
     raw.write_bytes(b"raw")
     dub.write_bytes(b"dub")
 
-    assert assemble_final.find_chunk(chunk_dir, 3) == raw
+    assert assemble_final.find_chunk(chunk_dir, 3) == str(raw)
+
+
+def test_is_noise_only_keeps_legacy_bracket_behavior() -> None:
+    assert assemble_final.is_noise_only("[Music]")
+    assert assemble_final.is_noise_only("[Lyric]")
+    assert not assemble_final.is_noise_only("Hello")
 
 
 def test_validate_assembly_inputs_rejects_bad_missing_policy(tmp_path: Path) -> None:
