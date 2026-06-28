@@ -50,9 +50,33 @@ def test_validate_assembly_inputs_rejects_bad_missing_policy(tmp_path: Path) -> 
         )
 
 
+def test_validate_refined_segments_accepts_minimal_assembly_contract() -> None:
+    assemble_final.validate_refined_segments(
+        [
+            {
+                "id": 0,
+                "start": "00:00:00.000",
+                "end": "00:00:01.000",
+                "en": "Hello.",
+            }
+        ]
+    )
+
+
 def test_validate_refined_segments_rejects_bad_contract() -> None:
     with pytest.raises(ValueError):
         assemble_final.validate_refined_segments([{"id": 0}])
+
+
+def test_missing_assembly_chunk_ids_skips_bracket_rows(tmp_path: Path) -> None:
+    chunk_dir = tmp_path / "chunks"
+    chunk_dir.mkdir()
+    segments = [
+        {"id": 0, "start": "00:00:00.000", "end": "00:00:01.000", "en": "[Lyric]"},
+        {"id": 1, "start": "00:00:01.000", "end": "00:00:02.000", "en": "Hello."},
+    ]
+
+    assert assemble_final.missing_assembly_chunk_ids(segments, chunk_dir) == [1]
 
 
 def test_atempo_filters_splits_out_of_range_ratios() -> None:
