@@ -9,15 +9,7 @@ from typing import Any
 from pydub import AudioSegment
 
 from common import get_nested, load_config, parse_args, timestamp_to_ms
-from data_contracts import (
-    expected_chunk_paths,
-    has_errors,
-    is_non_spoken_segment,
-    load_json_array,
-    missing_tts_chunk_ids,
-    render_issues,
-    validate_segment_list,
-)
+from data_contracts import expected_chunk_paths, load_json_array
 from runtime_checks import ensure_parent_dir, require_choice, require_dir, require_file, require_positive_float
 
 MISSING_POLICIES = {"error", "warn", "skip"}
@@ -85,10 +77,46 @@ def adjust_speed_smart(input_wav: str | Path, target_dur_sec: float, output_wav:
     return True
 
 
+def assembly_segment_errors(segments: list[dict[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    for idx, segment in enumerate(segments):
+        for key in ("id", "start", "end", "en"):
+            if key not in segment:
+                errors.append(f"segment[{idx}].{key}: missing required assembly field")
+        if "start" in segment and "end" in segment:
+            try:
+                start_ms = timestamp_to_ms(str(segment["start"]))
+                end_ms = timestamp_to_ms(str(segment["end"]))
+            except Exception as exc:
+                errors.append(f"segment[{idx}]: invalid timestamp: {exc}")
+            else:
+                if end_ms <= start_ms:
+                    errors.append(f"segment[{idx}]: end must be after start")
+    return errors
+
+
 def validate_refined_segments(segments: list[dict[str, Any]]) -> None:
-    issues = validate_segment_list(segments, "refined", refined=True)
-    if has_errors(issues):
-        raise ValueError("Refined JSON failed contract validation:\n" + render_issues(issues))
+    """Validate the fields required by final assembly.
+
+    Stage 04 owns the full ASR/refined JSON contract. Stage 06 should still be
+    strict about the fields it actually needs, but it should not reject older
+    lightweight smoke fixtures that omit non-assembly fields such as
+    ``speaker`` or ``zh_fixed``.
+    """
+    errors = assembly_segment_errors(segments)
+    if errors:
+        raise ValueError("Refined JSON failed assembly validation:\n" + "\n".join(errors))
+
+
+def missing_assembly_chunk_ids(segments: list[dict[str, Any]], chunk_dir: str | Path) -> list[Any]:
+    missing: list[Any] = []
+    for segment in segments:
+        if is_noise_only(str(segment.get("en", ""))):
+            continue
+        seg_id = segment.get("id")
+        if find_chunk(chunk_dir, seg_id) is None:
+            missing.append(seg_id)
+    return missing
 
 
 def validate_assembly_inputs(
@@ -139,7 +167,7 @@ def main() -> None:
     segments = load_json_array(refined_path)
     validate_refined_segments(segments)
 
-    missing = missing_tts_chunk_ids(segments, chunks_path)
+    missing = missing_assembly_chunk_ids(segments, chunks_path)
     if missing and policy == "error":
         raise FileNotFoundError("Missing required audio chunks: " + ", ".join(f"ID_{seg_id}" for seg_id in missing))
 
@@ -151,7 +179,7 @@ def main() -> None:
 
     for seg in segments:
         seg_id = seg["id"]
-        if is_non_spoken_segment(seg):
+        if is_noise_only(str(seg.get("en", ""))):
             skipped_noise += 1
             continue
         raw_wav = find_chunk(chunks_path, seg_id)
