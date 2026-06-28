@@ -1,30 +1,39 @@
 from __future__ import annotations
 
-import json
-import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from pydub import AudioSegment
 
-from common import ensure_parent, get_nested, load_config, parse_args, timestamp_to_ms
+from common import get_nested, load_config, parse_args, timestamp_to_ms
+from data_contracts import expected_chunk_paths, load_json_array
+from runtime_checks import ensure_parent_dir, require_choice, require_dir, require_file, require_positive_float
 
-
+MISSING_POLICIES = {"error", "warn", "skip"}
 NOISE_MARKERS = {"[Music]", "[Human Sounds]", "[Human sounds]", "[Silence]"}
 
 
 def is_noise_only(text: str) -> bool:
+    """Backward-compatible helper kept for older tests and direct callers."""
     stripped = text.strip()
     return stripped in NOISE_MARKERS or bool(re.match(r"^\[[^\]]+\]$", stripped))
 
 
-def find_chunk(chunk_dir: str | os.PathLike[str], seg_id: int | str) -> str | None:
-    for prefix in ("raw", "dub"):
-        candidate = Path(chunk_dir) / f"{prefix}_{seg_id}.wav"
-        if candidate.exists():
-            return str(candidate)
+def find_chunk(chunk_dir: str | Path, seg_id: int | str) -> str | None:
+    """Return the first compatible chunk path as a string.
+
+    The public helper returned ``str | None`` before the output-stage hardening
+    refactor. Keep that behavior so older tests and direct callers continue to
+    work while the implementation still uses the shared chunk naming contract.
+    """
+    raw_path, dub_path = expected_chunk_paths(chunk_dir, seg_id)
+    if raw_path.exists():
+        return str(raw_path)
+    if dub_path.exists():
+        return str(dub_path)
     return None
 
 
@@ -53,11 +62,11 @@ def speed_adjustment_ratio(current_dur_sec: float, target_dur_sec: float, min_sp
     return final_ratio
 
 
-def run_atempo(input_wav: str, ratio: float, output_wav: str) -> None:
-    subprocess.run(["ffmpeg", "-y", "-i", input_wav, "-filter:a", ",".join(atempo_filters(ratio)), output_wav], check=True)
+def run_atempo(input_wav: str | Path, ratio: float, output_wav: str | Path) -> None:
+    subprocess.run(["ffmpeg", "-y", "-i", str(input_wav), "-filter:a", ",".join(atempo_filters(ratio)), str(output_wav)], check=True)
 
 
-def adjust_speed_smart(input_wav: str, target_dur_sec: float, output_wav: str, min_speed_ratio: float) -> bool:
+def adjust_speed_smart(input_wav: str | Path, target_dur_sec: float, output_wav: str | Path, min_speed_ratio: float) -> bool:
     audio = AudioSegment.from_file(input_wav)
     current_dur = len(audio) / 1000.0
     final_ratio = speed_adjustment_ratio(current_dur, target_dur_sec, min_speed_ratio)
@@ -66,6 +75,69 @@ def adjust_speed_smart(input_wav: str, target_dur_sec: float, output_wav: str, m
         return False
     run_atempo(input_wav, final_ratio, output_wav)
     return True
+
+
+def assembly_segment_errors(segments: list[dict[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    for idx, segment in enumerate(segments):
+        for key in ("id", "start", "end", "en"):
+            if key not in segment:
+                errors.append(f"segment[{idx}].{key}: missing required assembly field")
+        if "start" in segment and "end" in segment:
+            try:
+                start_ms = timestamp_to_ms(str(segment["start"]))
+                end_ms = timestamp_to_ms(str(segment["end"]))
+            except Exception as exc:
+                errors.append(f"segment[{idx}]: invalid timestamp: {exc}")
+            else:
+                if end_ms <= start_ms:
+                    errors.append(f"segment[{idx}]: end must be after start")
+    return errors
+
+
+def validate_refined_segments(segments: list[dict[str, Any]]) -> None:
+    """Validate the fields required by final assembly.
+
+    Stage 04 owns the full ASR/refined JSON contract. Stage 06 should still be
+    strict about the fields it actually needs, but it should not reject older
+    lightweight smoke fixtures that omit non-assembly fields such as
+    ``speaker`` or ``zh_fixed``.
+    """
+    errors = assembly_segment_errors(segments)
+    if errors:
+        raise ValueError("Refined JSON failed assembly validation:\n" + "\n".join(errors))
+
+
+def missing_assembly_chunk_ids(segments: list[dict[str, Any]], chunk_dir: str | Path) -> list[Any]:
+    missing: list[Any] = []
+    for segment in segments:
+        if is_noise_only(str(segment.get("en", ""))):
+            continue
+        seg_id = segment.get("id")
+        if find_chunk(chunk_dir, seg_id) is None:
+            missing.append(seg_id)
+    return missing
+
+
+def validate_assembly_inputs(
+    json_file: str,
+    bgm_path: str,
+    chunk_dir: str,
+    video_source: str,
+    temp_mixed_wav: str,
+    output_video: str,
+    min_speed_ratio: Any,
+    missing_policy: Any,
+) -> tuple[Path, Path, Path, Path, Path, Path, float, str]:
+    refined_path = require_file(json_file, "paths.refined_json")
+    instrumental_path = require_file(bgm_path, "paths.instrumental_audio")
+    chunks_path = require_dir(chunk_dir, "paths.dub_chunk_dir")
+    source_video_path = require_file(video_source, "paths.input_video")
+    temp_path = ensure_parent_dir(temp_mixed_wav, "paths.temp_mixed_wav")
+    output_path = ensure_parent_dir(output_video, "paths.final_video")
+    speed_floor = require_positive_float(min_speed_ratio, "assembly.min_speed_ratio")
+    policy = require_choice(missing_policy, "assembly.missing_chunk_policy", MISSING_POLICIES)
+    return refined_path, instrumental_path, chunks_path, source_video_path, temp_path, output_path, speed_floor, policy
 
 
 def main() -> None:
@@ -77,59 +149,82 @@ def main() -> None:
     output_video = get_nested(cfg, "paths.final_video")
     video_source = get_nested(cfg, "paths.input_video")
     temp_mixed_wav = get_nested(cfg, "paths.temp_mixed_wav")
-    min_speed_ratio = float(get_nested(cfg, "assembly.min_speed_ratio", 0.70))
+    min_speed_ratio = get_nested(cfg, "assembly.min_speed_ratio", 0.70)
     bitrate = get_nested(cfg, "assembly.audio_bitrate", "192k")
     missing_policy = get_nested(cfg, "assembly.missing_chunk_policy", "error")
 
-    with open(json_file, "r", encoding="utf-8") as f:
-        segments = json.load(f)
+    refined_path, instrumental_path, chunks_path, source_video_path, temp_path, output_path, speed_floor, policy = validate_assembly_inputs(
+        json_file,
+        bgm_path,
+        chunk_dir,
+        video_source,
+        temp_mixed_wav,
+        output_video,
+        min_speed_ratio,
+        missing_policy,
+    )
 
-    ensure_parent(temp_mixed_wav)
-    ensure_parent(output_video)
-    final_audio = AudioSegment.from_wav(bgm_path)
-    missing: list[int | str] = []
+    segments = load_json_array(refined_path)
+    validate_refined_segments(segments)
+
+    missing = missing_assembly_chunk_ids(segments, chunks_path)
+    if missing and policy == "error":
+        raise FileNotFoundError("Missing required audio chunks: " + ", ".join(f"ID_{seg_id}" for seg_id in missing))
+
+    final_audio = AudioSegment.from_wav(instrumental_path)
     skipped_noise = 0
     used_chunks = 0
     adjusted_chunks = 0
+    warned_missing = 0
 
     for seg in segments:
         seg_id = seg["id"]
-        if is_noise_only(seg.get("en", "")):
+        if is_noise_only(str(seg.get("en", ""))):
             skipped_noise += 1
             continue
-        raw_wav = find_chunk(chunk_dir, seg_id)
+        raw_wav = find_chunk(chunks_path, seg_id)
         if not raw_wav:
-            missing.append(seg_id)
-            if missing_policy == "warn":
+            warned_missing += 1
+            if policy == "warn":
                 print(f"Missing chunk: ID_{seg_id}")
-                continue
-            if missing_policy == "skip":
-                continue
             continue
         start_ms = timestamp_to_ms(seg["start"])
         end_ms = timestamp_to_ms(seg["end"])
-        fixed_wav = os.path.join(chunk_dir, f"fixed_{seg_id}.wav")
-        was_adjusted = adjust_speed_smart(raw_wav, (end_ms - start_ms) / 1000.0, fixed_wav, min_speed_ratio)
+        fixed_wav = chunks_path / f"fixed_{seg_id}.wav"
+        was_adjusted = adjust_speed_smart(raw_wav, (end_ms - start_ms) / 1000.0, fixed_wav, speed_floor)
         adjusted_chunks += int(was_adjusted)
         used_chunks += 1
         final_audio = final_audio.overlay(AudioSegment.from_wav(fixed_wav), position=start_ms)
 
-    if missing and missing_policy == "error":
-        raise FileNotFoundError(
-            "Missing required audio chunks: " + ", ".join(f"ID_{seg_id}" for seg_id in missing)
-        )
-
-    final_audio.export(temp_mixed_wav, format="wav")
-    subprocess.run([
-        "ffmpeg", "-y", "-i", video_source, "-i", temp_mixed_wav,
-        "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", bitrate, output_video,
-    ], check=True)
+    final_audio.export(temp_path, format="wav")
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source_video_path),
+            "-i",
+            str(temp_path),
+            "-map",
+            "0:v",
+            "-map",
+            "1:a",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            str(bitrate),
+            str(output_path),
+        ],
+        check=True,
+    )
     print(
         "Assembly summary: "
         f"segments={len(segments)}, used_chunks={used_chunks}, "
-        f"adjusted_chunks={adjusted_chunks}, skipped_noise={skipped_noise}, missing_chunks={len(missing)}"
+        f"adjusted_chunks={adjusted_chunks}, skipped_noise={skipped_noise}, missing_chunks={warned_missing}"
     )
-    print(f"Done: {output_video}")
+    print(f"Done: {output_path}")
 
 
 if __name__ == "__main__":
