@@ -1,0 +1,88 @@
+# Minimal configuration used by tests and lightweight CI-style validation.
+# It is intentionally not a runnable media-processing configuration.
+
+paths:
+  input_video: "tests/fixtures/input.mp4"
+  input_wav: "tests/fixtures/input.wav"
+  output_dir: "test_output"
+  vocal_source_for_asr: "test_output/input_Vocals_Final_Gated.wav"
+  instrumental_audio: "test_output/input_(Instrumental)_Kim_Vocal_2.wav"
+  asr_json: "test_output/test_recognition_vibe.json"
+  refined_json: "test_output/workflow_data_refined_vibe.json"
+  dub_chunk_dir: "test_output/dub_chunks"
+  temp_mixed_wav: "test_output/temp_full_audio.wav"
+  final_video: "test_output/final_dubbing.mp4"
+  lipsync_video: "test_output/final_dubbing_lipsync.mp4"
+  subtitle_ass: "test_output/subtitles.ass"
+  subtitled_video: "test_output/final_dubbing_subtitled.mp4"
+
+models:
+  audio_separator_model: "Kim_Vocal_2.onnx"
+  audio_separator_model_dir: "tests/fixtures/models/audio-separator"
+  vibevoice_repo: "tests/fixtures/repos/VibeVoice"
+  vibevoice_asr_path: "tests/fixtures/models/VibeVoice-ASR"
+  qwen_asr_path: "tests/fixtures/models/Qwen3-ASR-1.7B"
+  voxcpm_model_path: "tests/fixtures/models/VoxCPM2"
+  latentsync_dir: "tests/fixtures/repos/LatentSync"
+
+llm:
+  api_base: "https://example.invalid/v1/chat/completions"
+  model: "ci-placeholder-model"
+  api_key_env: "CI_LLM_API_KEY"
+  temperature: 0.1
+  max_tokens: 1024
+  batch_size: 2
+  split_failed_batches: true
+
+runtime:
+  asr_device: "cpu"
+  asr_dtype: "float32"
+  tts_devices: ["cpu"]
+
+audio_extract:
+  sample_rate: 16000
+  channels: 1
+
+vocal_extraction:
+  output_format: "WAV"
+  mdx_overlap: 0.25
+  enable_denoise: false
+  noise_gate_threshold: 0.03
+  noise_gate_range: 0.01
+  noise_gate_attack_ms: 50
+  noise_gate_release_ms: 500
+  raw_vocal_name: "input_Vocals_HQ_Raw"
+  final_vocal_name: "input_Vocals_Final_Gated.wav"
+
+asr:
+  max_new_tokens: 512
+  temperature: 0.1
+  top_p: 0.95
+  repetition_penalty: 1.0
+  context_hint: "CI placeholder config."
+
+tts:
+  backend: "manual"
+  custom_command: ""
+  voxcpm_adapter: ""
+  voxcpm_adapter_function: "generate_audio"
+  overwrite: false
+  cfg_value: 2.0
+  inference_timesteps: 1
+  voice_prompt_prefix: "(test voice) [spk1]"
+
+assembly:
+  min_speed_ratio: 0.70
+  audio_bitrate: "96k"
+  missing_chunk_policy: "error"
+
+subtitles:
+  font_name: "Arial"
+  font_size: 40
+  pos_x: 960
+  pos_y: 930
+  color_text: "&H00FFFFFF"
+  color_outline: "&H00000000"
+  outline_size: 2
+  max_chars_per_line: 42
+  min_duration_ms: 800
