@@ -149,6 +149,16 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 3 --to-s
 python scripts/validate_artifacts.py --config configs/local.yaml
 ```
 
+### Render final outputs only
+
+```bash
+python scripts/validate_artifacts.py --config configs/local.yaml
+python scripts/06_assemble_final.py --config configs/local.yaml
+python scripts/run_pipeline.py --config configs/local.yaml --from-stage 6 --to-stage 8 --status
+```
+
+See [OUTPUT_STAGES.md](OUTPUT_STAGES.md) for final assembly, LatentSync, subtitle burn-in, and output-stage troubleshooting.
+
 ### Only inspect subtitles or lip-sync outputs
 
 ```bash
@@ -163,6 +173,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 7 --to-s
 | `--preflight` stops before stages run | Fix all `FAIL` rows first, then rerun. |
 | `validate_artifacts.py` reports timestamp errors | Check `start` / `end` format and ensure each `end` is after `start`. |
 | `validate_artifacts.py` reports alignment errors | Stage 03 changed an immutable field; rerun translation or repair only `zh_fixed` / `en`. |
+| Stage 06 fails before FFmpeg | Check refined JSON, instrumental audio, chunk directory, source video, output path, and `assembly.missing_chunk_policy`. |
 | `--status` reports TTS as partial | Add missing `raw_<id>.wav` or `dub_<id>.wav` files for spoken segments. |
 | `--resume` reruns verify | This is expected because the verify stage has no durable output. |
 | A stage fails but output files exist | Read `outputs/.pipeline_state/stage_*.json` and rerun with a narrower `--from-stage` / `--to-stage` range. |
