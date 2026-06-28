@@ -10,10 +10,40 @@ Use this document when you want to answer these questions before a long run:
 - Do my TTS chunks cover all spoken segments?
 - Can I resume without redoing earlier work?
 - Where can I see the last run status for each stage?
+- What diagnostic information should I paste into an issue or hand to an agent?
 
-## 1. Run preflight checks
+## 1. Generate a diagnostic report
 
-Run the environment and configuration checks first:
+When a run is failing or unclear, generate one report first:
+
+```bash
+python scripts/diagnose.py --config configs/local.yaml --include-artifacts
+```
+
+The report summarizes:
+
+- Python and platform details
+- FFmpeg / FFprobe / audio-separator availability
+- environment and config checks
+- selected stage output status
+- latest stage manifest summaries
+- optional ASR / refined JSON and TTS chunk validation
+
+Write it to a file when you need to attach or paste it elsewhere:
+
+```bash
+python scripts/diagnose.py --config configs/local.yaml --include-artifacts --output outputs/diagnostic_report.md
+```
+
+For tools and agents that need structured output:
+
+```bash
+python scripts/diagnose.py --config configs/local.yaml --include-artifacts --json
+```
+
+## 2. Run preflight checks
+
+Run the environment and configuration checks before starting a real pipeline run:
 
 ```bash
 python scripts/check_env.py --config configs/local.yaml
@@ -33,7 +63,7 @@ For a compact human-readable output without the final summary line:
 python scripts/check_env.py --config configs/local.yaml --no-summary
 ```
 
-## 2. Preview selected stages
+## 3. Preview selected stages
 
 Before running anything, print the exact commands that would run:
 
@@ -43,7 +73,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 This is useful after editing `configs/local.yaml`, changing the stage range, or adding `--skip` options.
 
-## 3. Gate a real run with preflight
+## 4. Gate a real run with preflight
 
 Use `--preflight` when you want the orchestrator to stop before stage execution if required checks fail:
 
@@ -57,7 +87,7 @@ You can combine it with `--dry-run` to test the gate and command plan without ex
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --preflight --dry-run
 ```
 
-## 4. Validate intermediate artifacts
+## 5. Validate intermediate artifacts
 
 After ASR, translation, or manual TTS preparation, validate the data contracts before moving downstream:
 
@@ -76,7 +106,7 @@ This checks:
 
 See [DATA_CONTRACTS.md](DATA_CONTRACTS.md) for the detailed rules.
 
-## 5. Inspect stage status
+## 6. Inspect stage status
 
 To see which selected stages appear complete, missing, partial, or check-only:
 
@@ -86,7 +116,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 The status command inspects configured output paths. For the TTS stage, it checks whether every spoken segment in `paths.refined_json` has a corresponding `raw_<id>.wav` or `dub_<id>.wav` in `paths.dub_chunk_dir`.
 
-## 6. Resume safely
+## 7. Resume safely
 
 Use `--resume` to skip stages whose expected outputs already exist:
 
@@ -96,7 +126,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 The verify stage is intentionally not auto-skipped because it has no durable output file. It should still run when selected.
 
-## 7. Skip a stage explicitly
+## 8. Skip a stage explicitly
 
 You can skip stages by stage ID or stage name:
 
@@ -106,7 +136,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 
 Use explicit skips carefully. A downstream stage may still fail if it depends on outputs from the skipped stage.
 
-## 8. Read stage manifests
+## 9. Read stage manifests
 
 After each executed stage, the orchestrator writes a small manifest under:
 
@@ -125,7 +155,7 @@ The manifest records:
 
 It intentionally does not store the full command, private absolute config path, model paths, source media paths, or secrets.
 
-## 9. Recommended run patterns
+## 10. Recommended run patterns
 
 ### First full local run
 
@@ -137,8 +167,7 @@ python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-s
 ### Continue after fixing a failed middle stage
 
 ```bash
-python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --status
-python scripts/validate_artifacts.py --config configs/local.yaml
+python scripts/diagnose.py --config configs/local.yaml --include-artifacts
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 0 --to-stage 6 --resume --preflight
 ```
 
@@ -165,10 +194,11 @@ See [OUTPUT_STAGES.md](OUTPUT_STAGES.md) for final assembly, LatentSync, subtitl
 python scripts/run_pipeline.py --config configs/local.yaml --from-stage 7 --to-stage 8 --status
 ```
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom | What to check |
 | --- | --- |
+| You need to ask for help | Run `python scripts/diagnose.py --config configs/local.yaml --include-artifacts` and paste the report. |
 | `check_env.py` returns `FAIL` for placeholder paths | Replace `/path/to/...` values in `configs/local.yaml` with real local paths. |
 | `--preflight` stops before stages run | Fix all `FAIL` rows first, then rerun. |
 | `validate_artifacts.py` reports timestamp errors | Check `start` / `end` format and ensure each `end` is after `start`. |

@@ -132,6 +132,12 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for focused checks, CI policy, an
 
 ## Usage
 
+Generate a diagnostic report when a run is failing or unclear:
+
+```bash
+python scripts/diagnose.py --config configs/local.yaml --include-artifacts
+```
+
 Run a preflight check first:
 
 ```bash
