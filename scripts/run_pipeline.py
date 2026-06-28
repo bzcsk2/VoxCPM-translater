@@ -13,32 +13,10 @@ from common import get_nested, load_config
 from config_checks import has_failures, render_results, run_environment_checks
 from data_contracts import has_errors as has_contract_errors
 from data_contracts import load_json_array, missing_tts_chunk_ids, validate_segment_list
+from stage_contracts import legacy_stage_tuples, stage_output_key_map
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-
-STAGES = [
-    (0, "extract-audio", [sys.executable, str(SCRIPT_DIR / "00_extract_audio.py")]),
-    (1, "process-vocals", ["bash", str(SCRIPT_DIR / "01_process_vocals.sh")]),
-    (2, "transcribe", [sys.executable, str(SCRIPT_DIR / "02_transcribe_vibe.py")]),
-    (3, "refine-translate", [sys.executable, str(SCRIPT_DIR / "03_refine_and_translate.py")]),
-    (4, "verify", [sys.executable, str(SCRIPT_DIR / "04_verify_translation.py")]),
-    (5, "generate-audio-chunks", [sys.executable, str(SCRIPT_DIR / "05_generate_audio_chunks.py")]),
-    (6, "assemble", [sys.executable, str(SCRIPT_DIR / "06_assemble_final.py")]),
-    (7, "latentsync", [sys.executable, str(SCRIPT_DIR / "07_latentsync_lipsync.py")]),
-    (8, "burn-subtitles", [sys.executable, str(SCRIPT_DIR / "burn_subtitles.py")]),
-]
-
-STAGE_OUTPUT_KEYS = {
-    0: ["paths.input_wav"],
-    1: ["paths.vocal_source_for_asr", "paths.instrumental_audio"],
-    2: ["paths.asr_json"],
-    3: ["paths.refined_json"],
-    4: [],
-    5: ["paths.dub_chunk_dir"],
-    6: ["paths.final_video"],
-    7: ["paths.lipsync_video"],
-    8: ["paths.subtitled_video"],
-}
+STAGES = legacy_stage_tuples()
+STAGE_OUTPUT_KEYS = stage_output_key_map()
 
 
 def parse_args() -> argparse.Namespace:
