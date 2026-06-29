@@ -42,7 +42,15 @@ def _segment_text(segment: dict[str, Any]) -> str:
 
 def _render_command(template: str, segment: dict[str, Any], output_path: Path) -> list[str]:
     """Backward-compatible wrapper around the formal TTS command renderer."""
-    return render_custom_command(template, build_chunk_request(segment, output_path.parent))
+    request = TTSChunkRequest(
+        segment_id=segment.get("id"),
+        text=segment_text(segment),
+        speaker=str(segment.get("speaker", "")),
+        start=str(segment.get("start", "")),
+        end=str(segment.get("end", "")),
+        output_path=output_path,
+    )
+    return render_custom_command(template, request)
 
 
 def validate_manual_chunks(segments: list[dict[str, Any]], chunk_dir: Path) -> list[Any]:
