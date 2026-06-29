@@ -1,0 +1,29 @@
+[
+  {
+    "id": 0,
+    "start": "00:00:00.000",
+    "end": "00:00:01.200",
+    "speaker": "SPEAKER_00",
+    "text_zh": "你好，欢迎使用这个演示。",
+    "zh_fixed": "你好，欢迎使用这个演示。",
+    "en": "Hello, welcome to this demo."
+  },
+  {
+    "id": 1,
+    "start": "00:00:01.200",
+    "end": "00:00:02.000",
+    "speaker": "SPEAKER_00",
+    "text_zh": "[Music]",
+    "zh_fixed": "[Music]",
+    "en": "[Music]"
+  },
+  {
+    "id": 2,
+    "start": "00:00:02.000",
+    "end": "00:00:03.500",
+    "speaker": "SPEAKER_01",
+    "text_zh": "这段文字会被翻译成英文配音。",
+    "zh_fixed": "这段文字会被翻译成英文配音。",
+    "en": "This line will be translated into English dubbing."
+  }
+]
