@@ -24,8 +24,9 @@ This is the same command used by CI. It runs:
 2. Shell syntax check for `scripts/01_process_vocals.sh` when `bash` is available.
 3. Unit tests with `pytest -q`.
 4. Pipeline dry-run against `configs/default.yaml` from stage 0 to stage 6.
+5. No-model demo smoke against `examples/demo` fixtures.
 
-The command should not require local media, model weights, GPU runtime, API keys, or external model repositories.
+The command should not require local media, model weights, GPU runtime, API keys, FFmpeg execution, or external model repositories.
 
 ## Run only one check
 
@@ -34,6 +35,7 @@ Use `--check` to run a focused subset:
 ```bash
 python scripts/dev_check.py --check tests
 python scripts/dev_check.py --check pipeline-dry-run
+python scripts/dev_check.py --check demo-smoke
 python scripts/dev_check.py --check compile --check shell
 ```
 
@@ -56,6 +58,24 @@ By default the command stops at the first failure. To collect all lightweight fa
 ```bash
 python scripts/dev_check.py --keep-going
 ```
+
+## No-model demo smoke
+
+The demo smoke proves the fixture data path without real models:
+
+```bash
+python scripts/run_demo_smoke.py
+```
+
+It creates `outputs/demo_smoke/`, generates silent WAV chunks for spoken rows, then runs translation alignment verification, artifact validation, manual TTS chunk validation, and diagnostic report generation.
+
+The committed fixtures live in:
+
+```text
+examples/demo/
+```
+
+See [../examples/demo/README.md](../examples/demo/README.md) for details.
 
 ## CI policy
 
