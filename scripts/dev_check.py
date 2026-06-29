@@ -58,9 +58,14 @@ CHECKS = {
         ],
         description="dry-run the default pipeline command plan",
     ),
+    "demo-smoke": Check(
+        name="demo-smoke",
+        command=[sys.executable, "scripts/run_demo_smoke.py"],
+        description="run the no-model demo fixture smoke test",
+    ),
 }
 
-DEFAULT_CHECKS = ["compile", "shell", "tests", "pipeline-dry-run"]
+DEFAULT_CHECKS = ["compile", "shell", "tests", "pipeline-dry-run", "demo-smoke"]
 
 
 def parse_args() -> argparse.Namespace:
