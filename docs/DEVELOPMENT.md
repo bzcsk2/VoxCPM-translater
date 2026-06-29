@@ -22,9 +22,10 @@ This is the same command used by CI. It runs:
 
 1. Python compilation for `scripts/`.
 2. Shell syntax check for `scripts/01_process_vocals.sh` when `bash` is available.
-3. Unit tests with `pytest -q`.
-4. Pipeline dry-run against `configs/default.yaml` from stage 0 to stage 6.
-5. No-model demo smoke against `examples/demo` fixtures.
+3. YAML config schema validation for `configs/default.yaml`.
+4. Unit tests with `pytest -q`.
+5. Pipeline dry-run against `configs/default.yaml` from stage 0 to stage 6.
+6. No-model demo smoke against `examples/demo` fixtures.
 
 The command should not require local media, model weights, GPU runtime, API keys, FFmpeg execution, or external model repositories.
 
@@ -33,6 +34,7 @@ The command should not require local media, model weights, GPU runtime, API keys
 Use `--check` to run a focused subset:
 
 ```bash
+python scripts/dev_check.py --check config-schema
 python scripts/dev_check.py --check tests
 python scripts/dev_check.py --check pipeline-dry-run
 python scripts/dev_check.py --check demo-smoke
@@ -58,6 +60,16 @@ By default the command stops at the first failure. To collect all lightweight fa
 ```bash
 python scripts/dev_check.py --keep-going
 ```
+
+## Config schema validation
+
+Use schema-only validation when editing committed config templates or adding config keys:
+
+```bash
+python scripts/check_config_schema.py --config configs/default.yaml
+```
+
+This checks required keys, value types, enum values, numeric ranges, and cross-field rules without checking local files or executables. See [CONFIG_SCHEMA.md](CONFIG_SCHEMA.md).
 
 ## No-model demo smoke
 
