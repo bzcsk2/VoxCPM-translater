@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from common import get_nested
-
+from config_schema import validate_config_schema
 
 OK = "OK"
 WARN = "WARN"
@@ -49,6 +49,11 @@ class CheckResult:
 
     def to_dict(self) -> dict[str, str]:
         return asdict(self)
+
+
+def schema_issue_to_check_result(issue) -> CheckResult:
+    level = FAIL if issue.level == "ERROR" else WARN if issue.level == "WARN" else OK
+    return CheckResult(level, f"schema.{issue.path}", issue.message)
 
 
 def is_placeholder(value: Any) -> bool:
@@ -112,6 +117,11 @@ def check_module(results: list[CheckResult], key: str, module_name: str | None, 
     level = FAIL if required else WARN
     results.append(CheckResult(level, key, f"module is not importable: {module_name}"))
     return False
+
+
+def check_schema(results: list[CheckResult], cfg: dict[str, Any]) -> None:
+    for issue in validate_config_schema(cfg):
+        results.append(schema_issue_to_check_result(issue))
 
 
 def check_required_config_values(results: list[CheckResult], cfg: dict[str, Any]) -> None:
@@ -237,6 +247,7 @@ def check_outputs(results: list[CheckResult], cfg: dict[str, Any]) -> None:
 
 def run_environment_checks(cfg: dict[str, Any]) -> list[CheckResult]:
     results: list[CheckResult] = []
+    check_schema(results, cfg)
     check_executable(results, "ffmpeg")
     check_executable(results, "ffprobe")
     check_executable(results, "audio-separator", required=False)
